@@ -1,4 +1,6 @@
 #include "Arduino.h"
+#include "esp_system.h"
+
 #include "artnet.h"
 #include "dmx.h"
 
@@ -16,6 +18,20 @@ const u32 DMX_RATE_MS = 33; // ~30 Hz
 // 20 Hz -> 50ms
 
 // Watchdog
+hw_timer_t *timer = NULL;
+
+void IRAM_ATTR resetModule()
+{
+  ESP.restart();
+}
+
+void setup_watchdog()
+{
+  timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer, &resetModule, true);
+  timerAlarmWrite(timer, 10000000, false); // 10 seconds
+  timerAlarmEnable(timer);
+}
 
 void setup()
 {
@@ -23,6 +39,7 @@ void setup()
   Serial.printf("Artnet Node IP: 2.0.0.32\n");
   Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
 
+  setup_watchdog();
   setup_artnet();
   if (!setup_dmx())
   {
@@ -31,20 +48,19 @@ void setup()
       sleep(1000);
     }
   };
-  
+
   Serial.println("Setup complete");
 }
 
 void mapLuminixMiniBeam(u8 *data, int index)
 {
   // Bounds checking
-  if (index >= DMX_DATA_LEN - 1){
+  if (index >= DMX_DATA_LEN - 1)
     return;
-  }
-  
+
   u16 value = (data[index] << 8) | data[index + 1];
   value = min(value + 128, 65535);
-  
+
   data[index] = value >> 8;
   data[index + 1] = value & 0xFF;
 }
@@ -66,26 +82,26 @@ void loop()
   
   // Aligned DMX buffer for better performance
   __attribute__((aligned(4))) static u8 dmxData[DMX_DATA_LEN] = {0};
-  
+
   unsigned long now = millis();
-  
+
   // Receive Art-Net data
   bool new_data = get_artnet(UNIVERSE, dmxData, DMX_DATA_LEN);
   if (new_data)
   {
     lastArtNetTime = now;
     data_corretion(dmxData);
-    
+
     // Debug output
     Serial.printf("Art-Net: Ch[399]=%d, Ch[400]=%d\n", dmxData[399], dmxData[400]);
   }
-  
+
   // Send DMX continuously
   if (now - lastDmxTime >= DMX_RATE_MS)
-    {
-      lastDmxTime = now;
-      send_dmx(dmxData, DMX_DATA_LEN);
-    
+  {
+    lastDmxTime = now;
+    send_dmx(dmxData, DMX_DATA_LEN);
+
     // Warning for old Art-Net data
     if (now - lastArtNetTime > 5000)
     {
@@ -93,7 +109,7 @@ void loop()
       Serial.printf("Warning: No Art-Net data for %lu ms\n", now - lastArtNetTime);
     }
   }
-  
+
   // Watchdog reset
-  yield();
+  timerWrite(timer, 0);
 }
