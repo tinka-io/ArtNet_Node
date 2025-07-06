@@ -6,81 +6,94 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
+// Configuration
+const u8 UNIVERSE = 8;
+const u16 DMX_DATA_LEN = 512;
+const u32 DMX_RATE_MS = 33; // ~30 Hz
+// 40 Hz -> 25ms
+// 30 Hz -> 33.33ms
+// 25 Hz -> 40ms
+// 20 Hz -> 50ms
+
+// Watchdog
+
 void setup()
 {
   Serial.begin(115200);
   Serial.printf("Artnet Node IP: 2.0.0.32\n");
-  Serial.println(getCpuFrequencyMhz());
+  Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
 
   setup_artnet();
-
-  setup_dmx();
+  if (!setup_dmx())
+  {
+    while (true)
+    {
+      sleep(1000);
+    }
+  };
+  
+  Serial.println("Setup complete");
 }
 
-void mapLuminixMiniBeam(u8 *dmxData, int i)
+void mapLuminixMiniBeam(u8 *data, int index)
 {
-  u8 high, low;
-  u32 value;
-
-  high = dmxData[i];
-  low = dmxData[i + 1];
-  value = (high << 8) | low;
-
-  value = value + 128;
-  if (value > 65535) {
-    value = 65535;
+  // Bounds checking
+  if (index >= DMX_DATA_LEN - 1){
+    return;
   }
   
-  high = value / 256;
-  low = value % 256;
-
-  dmxData[i] = high;
-  dmxData[i + 1] = low;
+  u16 value = (data[index] << 8) | data[index + 1];
+  value = min(value + 128, 65535);
+  
+  data[index] = value >> 8;
+  data[index + 1] = value & 0xFF;
 }
 
-void data_corretion(u8 *dmxData)
+void data_corretion(u8 *data)
 {
-  u8 high, low;
-  u16 value;
-
-  for (int i = 399; i < 496; i += 12)
+  // Bounds checking for the loop
+  for (int i = 399; i < 496 && i < DMX_DATA_LEN - 3; i += 12)
   {
-    mapLuminixMiniBeam(dmxData, i);
-    mapLuminixMiniBeam(dmxData, i+2);
+    mapLuminixMiniBeam(data, i);
+    mapLuminixMiniBeam(data, i + 2);
   }
 }
 
 void loop()
 {
-  const u8 universe = 8;
-  const u16 dataLen = 512;
-  static u8 dmxData[dataLen] = {};
-
-  bool new_data = get_artnet(universe, dmxData, dataLen);
+  static unsigned long lastArtNetTime = 0;
+  static unsigned long lastDmxTime = 0;
+  
+  // Aligned DMX buffer for better performance
+  __attribute__((aligned(4))) static u8 dmxData[DMX_DATA_LEN] = {0};
+  
+  unsigned long now = millis();
+  
+  // Receive Art-Net data
+  bool new_data = get_artnet(UNIVERSE, dmxData, DMX_DATA_LEN);
   if (new_data)
   {
-    // Serial.printf("%3d, %3d", dmxData[399], dmxData[400]);
+    lastArtNetTime = now;
     data_corretion(dmxData);
-    // Serial.printf(" - %3d, %3d\n", dmxData[399], dmxData[400]);
+    
+    // Debug output
+    Serial.printf("Art-Net: Ch[399]=%d, Ch[400]=%d\n", dmxData[399], dmxData[400]);
   }
-
-  static unsigned long lastUpdate = 0;
-  unsigned long now = millis();
-  // 40 Hz -> 25ms
-  // 30 Hz -> 33.33ms
-  // 25 Hz -> 40ms
-  // 20 Hz -> 50ms
-  if (now - lastUpdate >= 33)
-  {
-    // Question to AI:
-    // If I leave this for loop active, the DMX Output Works fine.
-    // If I don't overwrte the dmxData array, the DMX Output stopts working. 
-    // What can it be?
-    for(int i=0; i < dataLen; i++){
-      dmxData[i] = 127;
+  
+  // Send DMX continuously
+  if (now - lastDmxTime >= DMX_RATE_MS)
+    {
+      lastDmxTime = now;
+      send_dmx(dmxData, DMX_DATA_LEN);
+    
+    // Warning for old Art-Net data
+    if (now - lastArtNetTime > 5000)
+    {
+      lastArtNetTime = now;
+      Serial.printf("Warning: No Art-Net data for %lu ms\n", now - lastArtNetTime);
     }
-    lastUpdate = now;
-    send_dmx(dmxData, dataLen);
-    // Serial.printf("%d\n", dmxData[2]);
   }
+  
+  // Watchdog reset
+  yield();
 }
