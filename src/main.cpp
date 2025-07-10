@@ -8,6 +8,8 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
+const u8 LED_PIN = 15;
+
 // Configuration
 const u8 UNIVERSE = 8;
 const u16 DMX_DATA_LEN = 512;
@@ -29,15 +31,29 @@ void setup_watchdog()
 {
   timer = timerBegin(0, 80, true);
   timerAttachInterrupt(timer, &resetModule, true);
-  timerAlarmWrite(timer, 10000000, false); // 10 seconds
+  timerAlarmWrite(timer, 20000000, false); // 20 seconds
   timerAlarmEnable(timer);
+}
+
+void blink_led(u32 dt){
+  static u32 last = 0;
+
+  if(millis() - last > dt){
+    last = millis();
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+  }
 }
 
 void setup()
 {
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
   Serial.begin(115200);
   Serial.printf("Artnet Node IP: 2.0.0.32\n");
   Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
+
+  WiFi.mode(WIFI_OFF);
+  btStop();
 
   setup_watchdog();
   setup_artnet();
@@ -50,28 +66,16 @@ void setup()
   };
 
   Serial.println("Setup complete");
-}
-
-void mapLuminixMiniBeam(u8 *data, int index)
-{
-  // Bounds checking
-  if (index >= DMX_DATA_LEN - 1)
-    return;
-
-  u16 value = (data[index] << 8) | data[index + 1];
-  value = min(value + 128, 65535);
-
-  data[index] = value >> 8;
-  data[index + 1] = value & 0xFF;
+  digitalWrite(LED_PIN, LOW);
 }
 
 void data_corretion(u8 *data)
 {
   // Bounds checking for the loop
-  for (int i = 399; i < 496 && i < DMX_DATA_LEN - 3; i += 12)
+  for (int i = 399; i < 496 && i < 503; i += 13)
   {
-    mapLuminixMiniBeam(data, i);
-    mapLuminixMiniBeam(data, i + 2);
+    data[i + 1] = (uint8_t)(data[i + 1] / 2.5);
+    data[i + 3] = data[i + 3] >> 3;
   }
 }
 
@@ -79,7 +83,7 @@ void loop()
 {
   static unsigned long lastArtNetTime = 0;
   static unsigned long lastDmxTime = 0;
-  
+  static u32 led_dt = 1000;
   // Aligned DMX buffer for better performance
   __attribute__((aligned(4))) static u8 dmxData[DMX_DATA_LEN] = {0};
 
@@ -89,11 +93,12 @@ void loop()
   bool new_data = get_artnet(UNIVERSE, dmxData, DMX_DATA_LEN);
   if (new_data)
   {
+    if(led_dt != 250) led_dt = 250;
+    
     lastArtNetTime = now;
+    // Serial.printf("Art-Net: %d, %d -> ", dmxData[438], dmxData[439]);
     data_corretion(dmxData);
-
-    // Debug output
-    Serial.printf("Art-Net: Ch[399]=%d, Ch[400]=%d\n", dmxData[399], dmxData[400]);
+    // Serial.printf("%d, %d\n", dmxData[438], dmxData[439]);
   }
 
   // Send DMX continuously
@@ -107,9 +112,11 @@ void loop()
     {
       lastArtNetTime = now;
       Serial.printf("Warning: No Art-Net data for %lu ms\n", now - lastArtNetTime);
+      if(led_dt != 1000) led_dt = 1000;
     }
   }
 
+  blink_led(led_dt);
   // Watchdog reset
   timerWrite(timer, 0);
 }

@@ -50,8 +50,12 @@ void send_dmx(uint8_t *data, uint16_t dataLen)
         return;
     }
 
+    // Write Start Byte
+    uint8_t start_byte[1] = {0}; 
+    dmx_write(dmxPort, start_byte, 1); // Start Byte = 0
+
     // Write data to DMX buffer
-    size_t bytes_written = dmx_write(dmxPort, data, dataLen);
+    size_t bytes_written = dmx_write_offset(dmxPort, 1, data, dataLen);
     if (bytes_written != dataLen)
     {
         Serial.printf("WARNING: DMX write incomplete - wrote %d/%d bytes\n", 
