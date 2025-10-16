@@ -1,14 +1,19 @@
 #include "Arduino.h"
 #include "esp_system.h"
 
-#include "artnet.h"
-#include "dmx.h"
+#include "Artnet.h"
+#include "Dmx.h"
+#include "ControlPanel.h"
+#include "PanelLogic.h"
+
+ControlPanel cP;
+PanelLogic pL(&cP);
 
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
-const u8 LED_PIN = 15;
+const u8 LED_PIN = 32;// 15; 15 Is for the Panno LED
 
 // Configuration
 const u8 UNIVERSE = 8;
@@ -49,9 +54,11 @@ void setup()
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
   Serial.begin(115200);
-  Serial.printf("Artnet Node IP: 2.0.0.32\n");
+  Serial.printf("Artnet Node IP: 2.0.0.33\n");
   Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
 
+  cP.begin();
+  
   WiFi.mode(WIFI_OFF);
   btStop();
 
@@ -79,8 +86,10 @@ void data_corretion(u8 *data)
   }
 }
 
-void loop()
+void loop_artnet_node()
 {
+  check_artnet_connection();
+  
   static unsigned long lastArtNetTime = 0;
   static unsigned long lastDmxTime = 0;
   static u32 led_dt = 1000;
@@ -119,4 +128,33 @@ void loop()
   blink_led(led_dt);
   // Watchdog reset
   timerWrite(timer, 0);
+}
+
+void loop_control_panael()
+{
+  // check_artnet_connection();
+
+  cP.update();
+  pL.update();
+
+  static unsigned long lastDmxTime = 0;
+  // Send DMX continuously
+  unsigned long now = millis();
+  if (now - lastDmxTime >= DMX_RATE_MS)
+  {
+    lastDmxTime = now;
+    send_dmx(pL.getDMXbuffer(), 512);
+  }
+
+  blink_led(500);
+
+
+  // Watchdog reset
+  timerWrite(timer, 0);
+}
+
+void loop()
+{
+  //loop_artnet_node();
+  loop_control_panael();
 }

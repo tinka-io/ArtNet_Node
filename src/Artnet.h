@@ -4,6 +4,9 @@
 #include <ETH.h>
 #include <WiFiUdp.h>
 
+// Override default ETH configuration for WT32-ETH01
+#undef ETH_PHY_ADDR
+#undef ETH_PHY_POWER
 #define ETH_PHY_ADDR 1
 #define ETH_PHY_POWER 16 // Important: GPIO 16 (active HIGH)
 #define ETH_PHY_MDC 23
@@ -11,7 +14,7 @@
 #define ETH_TYPE ETH_PHY_LAN8720
 #define ETH_CLK_MODE ETH_CLOCK_GPIO0_IN // WT32-ETH01 has crystal
 
-const IPAddress localIP(2, 0, 0, 32);
+const IPAddress localIP(2, 0, 0, 33);
 const IPAddress gateway(2, 0, 0, 1);
 const IPAddress subnet(255, 0, 0, 0);
 
@@ -23,7 +26,7 @@ __attribute__((aligned(4))) static uint8_t packetBuffer[530];
 
 void WiFiEvent(WiFiEvent_t event)
 {
-  if (event == SYSTEM_EVENT_ETH_GOT_IP)
+  if (event == ARDUINO_EVENT_ETH_GOT_IP)
   {
     Serial.print("Ethernet IP: ");
     Serial.println(ETH.localIP());
@@ -34,26 +37,32 @@ void setup_artnet()
 {
   pinMode(ETH_PHY_POWER, OUTPUT); // Enable power
   digitalWrite(ETH_PHY_POWER, HIGH);
-
+  
   WiFi.onEvent(WiFiEvent);
-
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  
+  #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ETH.begin(ETH_TYPE, ETH_PHY_ADDR, ETH_PHY_MDC, ETH_PHY_MDIO, ETH_PHY_POWER, ETH_CLK_MODE);
-#else
+  #else
   ETH.begin(ETH_PHY_ADDR, ETH_PHY_POWER, ETH_PHY_MDC, ETH_PHY_MDIO, ETH_TYPE, ETH_CLK_MODE);
-#endif
-
-  // Wait for link & IP
+  #endif
+  
   Serial.println("Waiting for Ethernet connection...");
-  while (!ETH.linkUp() || ETH.localIP()[0] == 0)
-  {
-    delay(500);
-    Serial.print(".");
-  }
+}
 
-  ETH.config(localIP, gateway, subnet);
-  udp.begin(ARTNET_PORT);
-  Serial.println("\nUDP for ArtNet started.");
+void check_artnet_connection()
+{
+  static bool active_connection = false;
+
+  if(!active_connection){
+    // Check for link & IP
+    if(ETH.linkUp() || ETH.localIP()[0] == 0){
+      active_connection = true;
+      
+      ETH.config(localIP, gateway, subnet);
+      udp.begin(ARTNET_PORT);
+      Serial.println("\nUDP for ArtNet started.");
+    }
+  }
 }
 
 bool get_artnet(uint8_t recv_universe, uint8_t *dmxData, uint16_t dataLen)
