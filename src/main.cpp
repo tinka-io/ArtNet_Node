@@ -1,5 +1,9 @@
 #include "Arduino.h"
 #include "esp_system.h"
+#include <WiFiUdp.h>
+
+#include "web/WebServer.h"
+#include "OTA.h"
 
 #include "Artnet.h"
 #include "Dmx.h"
@@ -8,6 +12,9 @@
 
 ControlPanel cP;
 PanelLogic pL(&cP);
+
+// UDP for ArtNet
+WiFiUDP udp;
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -49,21 +56,47 @@ void blink_led(u32 dt){
   }
 }
 
+void print_status()
+{
+  // Print status every 30 seconds
+  static unsigned long last_status = 0;
+  if (millis() - last_status > 30000)
+  {
+    last_status = millis();
+    Serial.println("\n[STATUS] Firmware: " + String(FIRMWARE_VERSION) + " | Uptime: " + String(millis() / 1000) + "s");
+  }
+}
+
 void setup()
 {
+  setup_watchdog();
+  
+  // Disable unused features
+  btStop();
+
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
+
   Serial.begin(115200);
-  Serial.printf("Artnet Node IP: 2.0.0.33\n");
+
+  delay(100); // Give serial time to initialize
+  Serial.println("\n\n========================================");
+  Serial.println("Tinkas ArtNet Node");
+  Serial.println("Firmware Version: " + String(FIRMWARE_VERSION));
   Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
+  Serial.println("========================================\n");
+
+  // Initialize network (Ethernet with WiFi fallback)
+  initializeNetwork();
+
+  // Setup web server and OTA
+  setupWebServer();
+  OTA_setup(&server);
+  startWebServer();
 
   cP.begin();
   
-  WiFi.mode(WIFI_OFF);
-  btStop();
-
-  setup_watchdog();
-  setup_artnet();
+  setup_artnet(udp);
   if (!setup_dmx())
   {
     while (true)
@@ -88,8 +121,6 @@ void data_corretion(u8 *data)
 
 void loop_artnet_node()
 {
-  check_artnet_connection();
-  
   static unsigned long lastArtNetTime = 0;
   static unsigned long lastDmxTime = 0;
   static u32 led_dt = 1000;
@@ -99,7 +130,7 @@ void loop_artnet_node()
   unsigned long now = millis();
 
   // Receive Art-Net data
-  bool new_data = get_artnet(UNIVERSE, dmxData, DMX_DATA_LEN);
+  bool new_data = get_artnet(udp, UNIVERSE, dmxData, DMX_DATA_LEN);
   if (new_data)
   {
     if(led_dt != 250) led_dt = 250;
@@ -132,8 +163,6 @@ void loop_artnet_node()
 
 void loop_control_panael()
 {
-  // check_artnet_connection();
-
   cP.update();
   pL.update();
 
@@ -155,6 +184,9 @@ void loop_control_panael()
 
 void loop()
 {
+  handleWebServer();
+  OTA_loop();
+
   //loop_artnet_node();
   loop_control_panael();
 }
