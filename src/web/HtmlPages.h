@@ -62,7 +62,14 @@ const char homePage[] PROGMEM = R"rawliteral(
             <p><strong>Subnet:</strong> %SUBNET%</p>
         </div>
 
+        <div class="info-box">
+            <h2>ArtNet & DMX</h2>
+            <p><strong>ArtNet Universe:</strong> %ARTNET_UNIVERSE%</p>
+            <p><strong>DMX Refresh Rate:</strong> %DMX_REFRESH% ms (%DMX_HZ% Hz)</p>
+        </div>
+
         <div class="btn-group">
+            <a href="/settings" class="btn">ArtNet/DMX Settings</a>
             <a href="/logs" class="btn">System Logs</a>
             <a href="/config" class="btn">Network Config</a>
             <a href="/update" class="btn">OTA Update</a>
@@ -347,6 +354,151 @@ const char logsPage[] PROGMEM = R"rawliteral(
 
         loadLogs();
         startPolling();
+    </script>
+</body>
+</html>
+)rawliteral";
+
+// HTML for the settings page
+const char settingsPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArtNet & DMX Settings</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; background-color: #f0f0f0; }
+        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        .info-box { background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #0066cc; }
+        .info-box h3 { margin-top: 0; color: #333; }
+        .info-box p { margin: 5px 0; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
+        .help-text { font-size: 12px; color: #666; margin-top: 5px; }
+        .refresh-presets { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+        .preset-btn { padding: 5px 10px; background-color: #f0f0f0; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .preset-btn:hover { background-color: #e0e0e0; }
+        button { background-color: #0066cc; color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; }
+        button:hover { background-color: #0052a3; }
+        .message { padding: 10px; margin-top: 15px; border-radius: 5px; display: none; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        .home-link { text-align: center; margin-top: 20px; }
+        .home-link a { color: #0066cc; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ArtNet & DMX Settings</h1>
+
+        <div class="info-box">
+            <h3>Current Settings</h3>
+            <p><strong>Mode:</strong> <span id="currentMode">%MODE%</span></p>
+            <p><strong>ArtNet Universe:</strong> <span id="currentUniverse">%ARTNET_UNIVERSE%</span></p>
+            <p><strong>DMX Refresh Rate:</strong> <span id="currentRefresh">%DMX_REFRESH%</span> ms (<span id="currentHz">%DMX_HZ%</span> Hz)</p>
+        </div>
+
+        <form id="settingsForm">
+            <div class="form-group">
+                <label for="artnetUniverse">ArtNet Universe (0-255)</label>
+                <input type="number" id="artnetUniverse" name="artnetUniverse" min="0" max="255" value="%ARTNET_UNIVERSE%" required>
+                <div class="help-text">Select which ArtNet universe to listen to for DMX data</div>
+            </div>
+
+            <div class="form-group">
+                <label for="dmxRefresh">DMX Refresh Rate (ms)</label>
+                <input type="number" id="dmxRefresh" name="dmxRefresh" min="10" max="100" value="%DMX_REFRESH%" required>
+                <div class="help-text">
+                    How often to send DMX data (10-100 ms). Lower = faster updates, higher CPU usage.
+                    <div id="refreshHz" style="margin-top: 5px; font-weight: bold;"></div>
+                </div>
+                <div class="refresh-presets">
+                    <button type="button" class="preset-btn" onclick="setRefresh(25)">40 Hz (25ms)</button>
+                    <button type="button" class="preset-btn" onclick="setRefresh(33)">30 Hz (33ms)</button>
+                    <button type="button" class="preset-btn" onclick="setRefresh(40)">25 Hz (40ms)</button>
+                    <button type="button" class="preset-btn" onclick="setRefresh(50)">20 Hz (50ms)</button>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit">Save Settings</button>
+            </div>
+        </form>
+
+        <div class="message" id="message"></div>
+        <div class="home-link"><a href="/">Back to Home</a></div>
+    </div>
+
+    <script>
+        const universeInput = document.getElementById('artnetUniverse');
+        const refreshInput = document.getElementById('dmxRefresh');
+        const refreshHzDiv = document.getElementById('refreshHz');
+        const message = document.getElementById('message');
+
+        function updateRefreshRate() {
+            const ms = parseInt(refreshInput.value) || 33;
+            const hz = (1000 / ms).toFixed(1);
+            refreshHzDiv.textContent = 'Approximately ' + hz + ' Hz';
+        }
+
+        function setRefresh(ms) {
+            refreshInput.value = ms;
+            updateRefreshRate();
+        }
+
+        refreshInput.addEventListener('input', updateRefreshRate);
+        updateRefreshRate();
+
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const data = {
+                artnetUniverse: parseInt(universeInput.value),
+                dmxRefreshRate: parseInt(refreshInput.value)
+            };
+
+            message.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    message.className = 'message success';
+                    message.textContent = 'Settings saved successfully! Changes will take effect immediately.';
+                    message.style.display = 'block';
+
+                    // Update current settings display
+                    document.getElementById('currentUniverse').textContent = data.artnetUniverse;
+                    document.getElementById('currentRefresh').textContent = data.dmxRefreshRate;
+                    document.getElementById('currentHz').textContent = (1000 / data.dmxRefreshRate).toFixed(1);
+
+                    // Hide message after 3 seconds
+                    setTimeout(() => {
+                        message.style.display = 'none';
+                    }, 3000);
+                } else {
+                    message.className = 'message error';
+                    message.textContent = 'Error: ' + result.message;
+                    message.style.display = 'block';
+                }
+            } catch (error) {
+                message.className = 'message error';
+                message.textContent = 'Error saving settings: ' + error.message;
+                message.style.display = 'block';
+            }
+        });
     </script>
 </body>
 </html>

@@ -39,6 +39,14 @@ void setupWebServer() {
     html.replace("%IP%", getCurrentIP().toString());
     html.replace("%GATEWAY%", getCurrentGateway().toString());
     html.replace("%SUBNET%", getCurrentSubnet().toString());
+    html.replace("%ARTNET_UNIVERSE%", String(AppSettings::app.artnetUniverse));
+    html.replace("%DMX_REFRESH%", String(AppSettings::app.dmxRefreshRate));
+
+    float hz = 1000.0 / AppSettings::app.dmxRefreshRate;
+    char hzStr[10];
+    snprintf(hzStr, sizeof(hzStr), "%.1f", hz);
+    html.replace("%DMX_HZ%", String(hzStr));
+
     server.send(200, "text/html", html);
   });
 
@@ -98,6 +106,66 @@ void setupWebServer() {
   // API: Clear logs
   server.on("/api/logs/clear", HTTP_POST, []() {
     handleClearLogs(&server);
+  });
+
+  // Settings page
+  server.on("/settings", []() {
+    String html = String(settingsPage);
+    html.replace("%MODE%", AppSettings::getModeString());
+    html.replace("%ARTNET_UNIVERSE%", String(AppSettings::app.artnetUniverse));
+    html.replace("%DMX_REFRESH%", String(AppSettings::app.dmxRefreshRate));
+
+    float hz = 1000.0 / AppSettings::app.dmxRefreshRate;
+    char hzStr[10];
+    snprintf(hzStr, sizeof(hzStr), "%.1f", hz);
+    html.replace("%DMX_HZ%", String(hzStr));
+
+    server.send(200, "text/html", html);
+  });
+
+  // API: Save ArtNet/DMX settings
+  server.on("/api/settings", HTTP_POST, []() {
+    if (server.hasArg("plain")) {
+      String body = server.arg("plain");
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, body);
+
+      if (error) {
+        server.send(400, "application/json", "{\"success\":false,\"message\":\"Invalid JSON\"}");
+        return;
+      }
+
+      // Validate and update settings
+      if (doc.containsKey("artnetUniverse")) {
+        int universe = doc["artnetUniverse"] | -1;
+        if (universe >= 0 && universe <= 255) {
+          AppSettings::app.artnetUniverse = universe;
+        } else {
+          server.send(400, "application/json", "{\"success\":false,\"message\":\"ArtNet Universe must be 0-255\"}");
+          return;
+        }
+      }
+
+      if (doc.containsKey("dmxRefreshRate")) {
+        int refresh = doc["dmxRefreshRate"] | -1;
+        if (refresh >= 10 && refresh <= 100) {
+          AppSettings::app.dmxRefreshRate = refresh;
+        } else {
+          server.send(400, "application/json", "{\"success\":false,\"message\":\"DMX Refresh Rate must be 10-100 ms\"}");
+          return;
+        }
+      }
+
+      // Save to persistent storage
+      AppSettings::save();
+
+      LOG_PRINTF("Settings updated - Universe: %d, Refresh: %d ms\n",
+                 AppSettings::app.artnetUniverse, AppSettings::app.dmxRefreshRate);
+
+      server.send(200, "application/json", "{\"success\":true,\"message\":\"Settings saved successfully\"}");
+    } else {
+      server.send(400, "application/json", "{\"success\":false,\"message\":\"No data received\"}");
+    }
   });
 
   // Save configuration endpoint
