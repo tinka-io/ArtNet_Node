@@ -1,5 +1,121 @@
 #pragma once
 
+// HTML for the home page
+const char homePage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tinkas ArtNet Node</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: 50px auto; padding: 20px; background-color: #f0f0f0; }
+        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; margin-bottom: 10px; }
+        .version { color: #666; font-size: 0.9em; margin: 0 0 30px 0; text-align: center; }
+        .info-box { background-color: #e8f4f8; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #0066cc; }
+        .info-box h2 { margin-top: 0; color: #333; font-size: 1.2em; }
+        .info-box p { margin: 8px 0; }
+        .mode-section { background-color: #fff3cd; padding: 25px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #ffc107; }
+        .mode-section h2 { margin-top: 0; color: #333; font-size: 1.2em; }
+        .mode-display { font-size: 1.3em; font-weight: bold; color: #0066cc; margin: 15px 0; }
+        .toggle-switch { position: relative; display: inline-block; width: 60px; height: 34px; margin: 0 15px; vertical-align: middle; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #0066cc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #28a745; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .mode-toggle-container { display: flex; align-items: center; justify-content: center; margin: 20px 0; font-size: 1.1em; }
+        .btn { display: inline-block; background-color: #0066cc; color: white; padding: 15px 30px; margin: 10px; text-decoration: none; border-radius: 5px; text-align: center; }
+        .btn:hover { background-color: #0052a3; }
+        .btn-group { display: flex; justify-content: space-around; margin-top: 30px; flex-wrap: wrap; }
+        .message { padding: 15px; margin-top: 15px; border-radius: 5px; display: none; text-align: center; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tinkas ArtNet Node</h1>
+        <div class="version">Firmware: %FIRMWARE_VERSION%</div>
+
+        <div class="mode-section">
+            <h2>Operation Mode</h2>
+            <div class="mode-display" id="currentMode">%MODE%</div>
+            <div class="mode-toggle-container">
+                <span>ArtNet Node</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="modeToggle" %MODE_CHECKED%>
+                    <span class="slider"></span>
+                </label>
+                <span>Control Panel</span>
+            </div>
+            <div class="message" id="message"></div>
+        </div>
+
+        <div class="info-box">
+            <h2>Network Information</h2>
+            <p><strong>Connection:</strong> %CONNECTION%</p>
+            <p><strong>IP Mode:</strong> %IP_MODE%</p>
+            <p><strong>IP Address:</strong> %IP%</p>
+            <p><strong>Gateway:</strong> %GATEWAY%</p>
+            <p><strong>Subnet:</strong> %SUBNET%</p>
+        </div>
+
+        <div class="btn-group">
+            <a href="/config" class="btn">Network Config</a>
+            <a href="/update" class="btn">OTA Update</a>
+        </div>
+    </div>
+
+    <script>
+        const toggle = document.getElementById('modeToggle');
+        const modeDisplay = document.getElementById('currentMode');
+        const message = document.getElementById('message');
+
+        toggle.addEventListener('change', async () => {
+            const newMode = toggle.checked;
+            const modeName = newMode ? 'Control Panel' : 'ArtNet Node';
+
+            message.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/setMode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ useControlPanel: newMode })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    modeDisplay.textContent = modeName;
+                    message.className = 'message success';
+                    message.textContent = 'Mode changed to ' + modeName + ' successfully!';
+                    message.style.display = 'block';
+
+                    // Hide success message after 3 seconds
+                    setTimeout(() => {
+                        message.style.display = 'none';
+                    }, 3000);
+                } else {
+                    toggle.checked = !newMode;
+                    message.className = 'message error';
+                    message.textContent = 'Error: ' + result.message;
+                    message.style.display = 'block';
+                }
+            } catch (error) {
+                toggle.checked = !newMode;
+                message.className = 'message error';
+                message.textContent = 'Error changing mode: ' + error.message;
+                message.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
+)rawliteral";
+
 // HTML for the configuration page
 const char configPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>

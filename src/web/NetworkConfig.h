@@ -22,10 +22,14 @@ IPAddress subnet(255, 0, 0, 0);
 IPAddress dns1(8, 8, 8, 8);
 IPAddress dns2(8, 8, 4, 4);
 
+// Operation mode: false = ArtNet Node, true = Control Panel
+bool useControlPanelMode = false;
+
 // Function to load network configuration from preferences
 void loadNetworkConfig() {
   preferences.begin("network", false);
   useDHCP = preferences.getBool("useDHCP", true);
+  useControlPanelMode = preferences.getBool("ctrlPanel", false);
 
   if (!useDHCP) {
     uint32_t ip = preferences.getUInt("staticIP", 0);
@@ -47,6 +51,7 @@ void loadNetworkConfig() {
 void saveNetworkConfig() {
   preferences.begin("network", false);
   preferences.putBool("useDHCP", useDHCP);
+  preferences.putBool("ctrlPanel", useControlPanelMode);
   preferences.putUInt("staticIP", static_cast<uint32_t>(staticIP));
   preferences.putUInt("gateway", static_cast<uint32_t>(gateway));
   preferences.putUInt("subnet", static_cast<uint32_t>(subnet));
@@ -175,7 +180,7 @@ void initializeNetwork() {
   // Wait for Ethernet connection
   Serial.println("Waiting for Ethernet Connection");
   int timeout = 0;
-  while (!ETH.linkUp() && timeout < 20) {
+  while (!ETH.linkUp() && timeout < 5) {
     delay(500);
     Serial.print(".");
     timeout++;
