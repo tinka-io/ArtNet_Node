@@ -27,26 +27,26 @@ private:
         dmxBuffer[ch-1] = val;
     }
 
+    void setEntrance(bool state){
+        int value = state ? 255 : 0;
+        setDMXchannel(1, value);
+    }
+
+    void setDoom(bool state){
+        int value = state ? 255 : 0;
+        setDMXchannel(2, value);
+    }
+
     void setHeater(bool state) {
         int value = state ? 255 : 0;
         setDMXchannel(3, value);
         setDMXchannel(4, value);
+        setDMXchannel(5, value);
     }
 
     void setWorkLight(bool state) {
         int value = state ? 255 : 0;
         setDMXchannel(6, value);
-    }
-
-    void setDekoLight_1(bool state) {
-        int value = state ? 255 : 0;
-        setDMXchannel(1, value);
-        setDMXchannel(2, value);
-    }
-
-    void setDekoLight_2(bool state) {
-        int value = state ? 255 : 0;
-        setDMXchannel(5, value);
     }
 
     void setCameoLED(int start_ch, int poti, int val){
@@ -98,32 +98,32 @@ private:
         switch(mode) {
             case 1:
                 setAllCameoLED(0, 0);
-                setDekoLight_1(false);
-                setDekoLight_2(false);
+                setEntrance(false);
+                setDoom(false);
                 setWorkLight(false);
                 break;
             case 2:
                 setAllCameoLED(0, potiValue);
-                setDekoLight_1(false);
-                setDekoLight_2(false);
+                setEntrance(true);
+                setDoom(true);
                 setWorkLight(false);
                 break;
             case 3:
                 setAllCameoLED(potiValue, 128);
-                setDekoLight_1(true);
-                setDekoLight_2(false);
+                setEntrance(true);
+                setDoom(true);
                 setWorkLight(false);
                 break;
             case 4:
-                setAllCameoLED(potiValue, 128);
-                setDekoLight_1(false);
-                setDekoLight_2(true);
+                setAllCameoLED(0, 0);
+                setEntrance(true);
+                setDoom(true);
                 setWorkLight(false);
                 break;
             case 5:
                 setAllCameoLED(0, 255);
-                setDekoLight_1(false);
-                setDekoLight_2(false);
+                setEntrance(false);
+                setDoom(false);
                 setWorkLight(true);
                 break;
         }
