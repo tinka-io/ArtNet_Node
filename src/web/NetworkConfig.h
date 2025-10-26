@@ -179,7 +179,7 @@ void initializeNetwork() {
   int timeout = 0;
   while (!ETH.linkUp() && timeout < 5) {
     delay(500);
-    Serial.print(".");
+    LOG_PRINTLN(".");
     timeout++;
   }
 

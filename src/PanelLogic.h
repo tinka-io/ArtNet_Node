@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "ControlPanel.h"
+#include "web/WebLogger.h"
 
 // Timer duration for push button (1 hour in milliseconds)
 #define HEATER_TIMER_DURATION  (60UL * 60UL * 1000UL)
@@ -93,7 +94,7 @@ private:
         // Define DMX values for each mode
         // Adjust these values to your needs
 
-        Serial.println("Mode: " + String(mode) + "\t potiValue: " + String(potiValue));
+        LOG_PRINTF("Control Panel Mode: %d, Potentiometer: %d\n", mode, potiValue);
 
         switch(mode) {
             case 1:
@@ -162,12 +163,12 @@ public:
             if(panel->getKeySwitch()){
                 eventBlockChange = !eventBlockChange;
                 heaterTimerRunning = !eventBlockChange;
-                Serial.println("EventBlockChange: " + String(eventBlockChange));
+                LOG_PRINTLN("Event Block Change: " + String(eventBlockChange ? "Enabled" : "Disabled"));
             }
 
             if (pushButton && !eventBlockChange) {
                 heatingActiv = !heatingActiv;
-                Serial.println("Heating Active: " + String(heatingActiv));
+                LOG_PRINTLN("Heating: " + String(heatingActiv ? "ON" : "OFF"));
                 heaterTimerRunning = true;
                 heaterTimerEnd = millis() + HEATER_TIMER_DURATION;
                 setHeater(heatingActiv);

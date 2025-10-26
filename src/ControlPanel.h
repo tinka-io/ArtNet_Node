@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "web/WebLogger.h"
 
 // Pin definitions - adjust to your wiring
 #define PIN_PUSH_BUTTON    2
@@ -115,7 +116,7 @@ public:
             tempState = newState;
         }
         if ((tempState != keySwitchState) && (now >= keySwitchBlockUntil)) {
-            Serial.println("Key: " + String(newState));
+            LOG_PRINTLN("Key Switch: " + String(newState));
             keySwitchState = tempState;
             changedBtnFlag = true;
         }
