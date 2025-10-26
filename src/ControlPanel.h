@@ -19,7 +19,7 @@
 #define ROTARY_THRESHOLD_2  1640
 #define ROTARY_THRESHOLD_3  2460
 #define ROTARY_THRESHOLD_4  3280
-#define ROTARY_THRESHOLD_5  3600
+#define ROTARY_THRESHOLD_5  4000
 class ControlPanel {
 private:
     // States
