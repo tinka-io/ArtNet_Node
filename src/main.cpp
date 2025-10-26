@@ -2,6 +2,7 @@
 #include "esp_system.h"
 #include <WiFiUdp.h>
 
+#include "settings/AppSettings.h"
 #include "web/WebServer.h"
 #include "OTA.h"
 
@@ -22,14 +23,7 @@ typedef uint32_t u32;
 
 const u8 LED_PIN = 32;// 15; 15 Is for the Panno LED
 
-// Configuration
-const u8 UNIVERSE = 8;
 const u16 DMX_DATA_LEN = 512;
-const u32 DMX_RATE_MS = 33; // ~30 Hz
-// 40 Hz -> 25ms
-// 30 Hz -> 33.33ms
-// 25 Hz -> 40ms
-// 20 Hz -> 50ms
 
 // Watchdog
 hw_timer_t *timer = NULL;
@@ -86,6 +80,9 @@ void setup()
   Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
   Serial.println("========================================\n");
 
+  // Load application settings
+  AppSettings::load();
+
   // Initialize network (Ethernet with WiFi fallback)
   initializeNetwork();
 
@@ -94,8 +91,16 @@ void setup()
   OTA_setup(&server);
   startWebServer();
 
+  Serial.printf("\nNode IP: %s\n", getCurrentIP().toString().c_str());
+  Serial.printf("IP Mode: %s\n", useDHCP ? "DHCP" : "Static IP");
+  if (!useDHCP) {
+    Serial.printf("  Static IP: %s\n", staticIP.toString().c_str());
+    Serial.printf("  Gateway: %s\n", gateway.toString().c_str());
+    Serial.printf("  Subnet: %s\n\n", subnet.toString().c_str());
+  }
+
   cP.begin();
-  
+
   setup_artnet(udp);
   if (!setup_dmx())
   {
@@ -130,7 +135,7 @@ void loop_artnet_node()
   unsigned long now = millis();
 
   // Receive Art-Net data
-  bool new_data = get_artnet(udp, UNIVERSE, dmxData, DMX_DATA_LEN);
+  bool new_data = get_artnet(udp, AppSettings::app.artnetUniverse, dmxData, DMX_DATA_LEN);
   if (new_data)
   {
     if(led_dt != 250) led_dt = 250;
@@ -142,7 +147,7 @@ void loop_artnet_node()
   }
 
   // Send DMX continuously
-  if (now - lastDmxTime >= DMX_RATE_MS)
+  if (now - lastDmxTime >= AppSettings::app.dmxRefreshRate)
   {
     lastDmxTime = now;
     send_dmx(dmxData, DMX_DATA_LEN);
@@ -169,15 +174,13 @@ void loop_control_panael()
   static unsigned long lastDmxTime = 0;
   // Send DMX continuously
   unsigned long now = millis();
-  if (now - lastDmxTime >= DMX_RATE_MS)
+  if (now - lastDmxTime >= AppSettings::app.dmxRefreshRate)
   {
     lastDmxTime = now;
     send_dmx(pL.getDMXbuffer(), 512);
   }
 
   blink_led(500);
-
-
   // Watchdog reset
   timerWrite(timer, 0);
 }
@@ -187,6 +190,10 @@ void loop()
   handleWebServer();
   OTA_loop();
 
-  //loop_artnet_node();
-  loop_control_panael();
+  // Select mode based on settings
+  if (AppSettings::app.useControlPanelMode) {
+    loop_control_panael();
+  } else {
+    loop_artnet_node();
+  }
 }

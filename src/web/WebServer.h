@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include "NetworkConfig.h"
 #include "HtmlPages.h"
+#include "../settings/AppSettings.h"
 
 WebServer server(80);
 
@@ -28,22 +29,41 @@ String processor(const String& var) {
 void setupWebServer() {
   // Home page
   server.on("/", []() {
-    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
-    html += "<style>body{font-family:Arial;text-align:center;margin:50px;} h1{color:#333;} .info{background:#e8f4f8;padding:20px;border-radius:10px;margin:20px 0;} ";
-    html += ".version{color:#666;font-size:0.9em;margin-top:10px;} ";
-    html += "a{display:inline-block;background:#0066cc;color:white;padding:15px 30px;margin:10px;text-decoration:none;border-radius:5px;} a:hover{background:#0052a3;}</style></head>";
-    html += "<body><h1>Tinkas ArtNet Node</h1>";
-    html += "<div class='version'>Firmware: " + String(FIRMWARE_VERSION) + "</div>";
-    html += "<div class='info'><h2>Network Information</h2>";
-    html += "<p><strong>Connection:</strong> " + String(usingWiFi ? "WiFi" : "Ethernet") + "</p>";
-    html += "<p><strong>Mode:</strong> " + String(useDHCP ? "DHCP" : "Static IP") + "</p>";
-    html += "<p><strong>IP Address:</strong> " + getCurrentIP().toString() + "</p>";
-    html += "<p><strong>Gateway:</strong> " + getCurrentGateway().toString() + "</p>";
-    html += "<p><strong>Subnet Mask:</strong> " + getCurrentSubnet().toString() + "</p></div>";
-    html += "<a href='/config'>Network Configuration</a>";
-    html += "<a href='/update'>OTA Update</a>";
-    html += "</body></html>";
+    String html = String(homePage);
+    html.replace("%FIRMWARE_VERSION%", FIRMWARE_VERSION);
+    html.replace("%MODE%", AppSettings::getModeString());
+    html.replace("%MODE_CHECKED%", AppSettings::app.useControlPanelMode ? "checked" : "");
+    html.replace("%CONNECTION%", String(usingWiFi ? "WiFi" : "Ethernet"));
+    html.replace("%IP_MODE%", String(useDHCP ? "DHCP" : "Static IP"));
+    html.replace("%IP%", getCurrentIP().toString());
+    html.replace("%GATEWAY%", getCurrentGateway().toString());
+    html.replace("%SUBNET%", getCurrentSubnet().toString());
     server.send(200, "text/html", html);
+  });
+
+  // API: Set operation mode
+  server.on("/api/setMode", HTTP_POST, []() {
+    if (server.hasArg("plain")) {
+      String body = server.arg("plain");
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, body);
+
+      if (error) {
+        server.send(400, "application/json", "{\"success\":false,\"message\":\"Invalid JSON\"}");
+        return;
+      }
+
+      bool newMode = doc["useControlPanel"] | false;
+      AppSettings::app.useControlPanelMode = newMode;
+      AppSettings::save();
+
+      String modeName = newMode ? "Control Panel" : "ArtNet Node";
+      Serial.printf("Mode changed to: %s\n", modeName.c_str());
+
+      server.send(200, "application/json", "{\"success\":true,\"message\":\"Mode changed to " + modeName + "\"}");
+    } else {
+      server.send(400, "application/json", "{\"success\":false,\"message\":\"No data received\"}");
+    }
   });
 
   // Configuration page
