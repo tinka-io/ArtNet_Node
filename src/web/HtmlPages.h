@@ -63,6 +63,7 @@ const char homePage[] PROGMEM = R"rawliteral(
         </div>
 
         <div class="btn-group">
+            <a href="/logs" class="btn">System Logs</a>
             <a href="/config" class="btn">Network Config</a>
             <a href="/update" class="btn">OTA Update</a>
         </div>
@@ -206,6 +207,146 @@ const char configPage[] PROGMEM = R"rawliteral(
                 message.style.display = 'block';
             }
         });
+    </script>
+</body>
+</html>
+)rawliteral";
+
+// HTML for the logs page
+const char logsPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f0f0; }
+        .container { background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 1200px; margin: 0 auto; }
+        .header { background-color: #0066cc; color: white; padding: 20px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        h1 { margin: 0; font-size: 1.5em; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { background-color: white; color: #0066cc; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block; }
+        .btn:hover { background-color: #f0f0f0; }
+        .btn-clear { background-color: #dc3545; color: white; }
+        .btn-clear:hover { background-color: #c82333; }
+        .log-container { padding: 20px; height: 70vh; overflow-y: auto; background-color: #1e1e1e; color: #d4d4d4; font-family: 'Courier New', monospace; font-size: 13px; border-radius: 0 0 10px 10px; }
+        .log-entry { padding: 4px 0; border-bottom: 1px solid #333; word-wrap: break-word; }
+        .log-entry:hover { background-color: #2d2d2d; }
+        .timestamp { color: #4ec9b0; font-weight: bold; }
+        .status { padding: 10px 20px; background-color: #e8f4f8; font-size: 12px; color: #666; }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .auto-scroll-toggle { display: flex; align-items: center; gap: 5px; color: white; font-size: 14px; }
+        .auto-scroll-toggle input { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>System Logs</h1>
+            <div class="controls">
+                <label class="auto-scroll-toggle">
+                    <input type="checkbox" id="autoScroll" checked>
+                    Auto-scroll
+                </label>
+                <button class="btn" onclick="loadLogs()">Refresh</button>
+                <button class="btn btn-clear" onclick="clearLogs()">Clear</button>
+                <a href="/" class="btn">Home</a>
+            </div>
+        </div>
+        <div class="status" id="status">Loading logs...</div>
+        <div class="log-container" id="logContainer">
+            <div style="color: #888;">Waiting for logs...</div>
+        </div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('logContainer');
+        const statusDiv = document.getElementById('status');
+        const autoScrollCheckbox = document.getElementById('autoScroll');
+        let lastLogCount = 0;
+
+        function scrollToBottom() {
+            if (autoScrollCheckbox.checked) {
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+        }
+
+        function displayLogs(logs) {
+            if (logs.length === 0) {
+                logContainer.innerHTML = '<div style="color: #888;">No logs available</div>';
+                return;
+            }
+
+            let html = '';
+            logs.forEach(log => {
+                const match = log.match(/\[(.*?)\](.*)/);
+                if (match) {
+                    html += `<div class="log-entry"><span class="timestamp">${match[1]}</span>${escapeHtml(match[2])}</div>`;
+                } else {
+                    html += `<div class="log-entry">${escapeHtml(log)}</div>`;
+                }
+            });
+            logContainer.innerHTML = html;
+            scrollToBottom();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function loadLogs() {
+            fetch('/api/logs')
+                .then(response => response.json())
+                .then(data => {
+                    displayLogs(data.logs);
+                    lastLogCount = data.logs.length;
+                    statusDiv.textContent = 'Loaded ' + data.logs.length + ' log entries';
+                    statusDiv.className = 'status';
+                })
+                .catch(error => {
+                    statusDiv.textContent = 'Error loading logs: ' + error.message;
+                    statusDiv.className = 'status';
+                });
+        }
+
+        function clearLogs() {
+            if (confirm('Clear all logs?')) {
+                fetch('/api/logs/clear', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(() => {
+                        logContainer.innerHTML = '<div style="color: #888;">Logs cleared</div>';
+                        lastLogCount = 0;
+                        statusDiv.textContent = 'Logs cleared';
+                    })
+                    .catch(error => {
+                        statusDiv.textContent = 'Error clearing logs: ' + error.message;
+                    });
+            }
+        }
+
+        function startPolling() {
+            setInterval(() => {
+                fetch('/api/logs')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.logs.length !== lastLogCount) {
+                            displayLogs(data.logs);
+                            lastLogCount = data.logs.length;
+                            statusDiv.textContent = 'Live - ' + data.logs.length + ' entries (last update: ' + new Date().toLocaleTimeString() + ')';
+                            statusDiv.className = 'status connected';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Polling error:', error);
+                    });
+            }, 1000);
+        }
+
+        loadLogs();
+        startPolling();
     </script>
 </body>
 </html>

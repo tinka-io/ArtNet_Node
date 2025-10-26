@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include "NetworkConfig.h"
 #include "HtmlPages.h"
+#include "WebLogger.h"
 #include "../settings/AppSettings.h"
 
 WebServer server(80);
@@ -58,7 +59,7 @@ void setupWebServer() {
       AppSettings::save();
 
       String modeName = newMode ? "Control Panel" : "ArtNet Node";
-      Serial.printf("Mode changed to: %s\n", modeName.c_str());
+      LOG_PRINTF("Mode changed to: %s\n", modeName.c_str());
 
       server.send(200, "application/json", "{\"success\":true,\"message\":\"Mode changed to " + modeName + "\"}");
     } else {
@@ -81,6 +82,22 @@ void setupWebServer() {
     html.replace("%DNS1%", dns1.toString());
     html.replace("%DNS2%", dns2.toString());
     server.send(200, "text/html", html);
+  });
+
+  // Logs page
+  server.on("/logs", []() {
+    String html = String(logsPage);
+    server.send(200, "text/html", html);
+  });
+
+  // API: Get logs
+  server.on("/api/logs", []() {
+    handleGetLogs(&server);
+  });
+
+  // API: Clear logs
+  server.on("/api/logs/clear", HTTP_POST, []() {
+    handleClearLogs(&server);
   });
 
   // Save configuration endpoint
@@ -128,7 +145,7 @@ void setupWebServer() {
 // Start web server
 void startWebServer() {
   server.begin();
-  Serial.println("HTTP server started");
+  LOG_PRINTLN("HTTP server started");
 }
 
 // Handle web server requests (call in loop)

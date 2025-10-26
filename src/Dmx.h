@@ -2,6 +2,7 @@
 
 #include "Arduino.h"
 #include <esp_dmx.h>
+#include "web/WebLogger.h"
 
 // DMX configuration
 const dmx_port_t DMX_PORT = 1;
@@ -24,18 +25,18 @@ bool setup_dmx()
     
     if (!dmx_driver_install(dmxPort, &config, NULL, 0))
     {
-        Serial.printf("ERROR: DMX driver install failed!\n");
+        LOG_PRINTF("ERROR: DMX driver install failed!\n");
         return false;
     }
 
     // Configure DMX pins
     if (!dmx_set_pin(dmxPort, DMX_TRANSMIT_PIN, DMX_RECEIVE_PIN, DMX_ENABLE_PIN))
     {
-        Serial.printf("ERROR: DMX pin configuration failed\n");
+        LOG_PRINTF("ERROR: DMX pin configuration failed\n");
         return false;
     }
 
-    Serial.printf("DMX setup complete - Port: %d, TX: %d, RX: %d, EN: %d\n", 
+    LOG_PRINTF("DMX setup complete - Port: %d, TX: %d, RX: %d, EN: %d\n",
                   dmxPort, DMX_TRANSMIT_PIN, DMX_RECEIVE_PIN, DMX_ENABLE_PIN);
 
     return true;
@@ -46,19 +47,19 @@ void send_dmx(uint8_t *data, uint16_t dataLen)
     // Validate input parameters
     if (data == NULL || dataLen == 0 || dataLen > DMX_PACKET_SIZE)
     {
-        Serial.printf("ERROR: Invalid DMX data parameters\n");
+        LOG_PRINTF("ERROR: Invalid DMX data parameters\n");
         return;
     }
 
     // Write Start Byte
-    uint8_t start_byte[1] = {0}; 
+    uint8_t start_byte[1] = {0};
     dmx_write(dmxPort, start_byte, 1); // Start Byte = 0
 
     // Write data to DMX buffer
     size_t bytes_written = dmx_write_offset(dmxPort, 1, data, dataLen);
     if (bytes_written != dataLen)
     {
-        Serial.printf("WARNING: DMX write incomplete - wrote %d/%d bytes\n", 
+        LOG_PRINTF("WARNING: DMX write incomplete - wrote %d/%d bytes\n",
                       bytes_written, dataLen);
     }
 
@@ -66,7 +67,7 @@ void send_dmx(uint8_t *data, uint16_t dataLen)
     size_t bytes_sended = dmx_send_num(dmxPort, dataLen);
     if (bytes_sended != dataLen)
     {
-        Serial.printf("ERROR: DMX send failed!\n");
+        LOG_PRINTF("ERROR: DMX send failed!\n");
         return;
     }
 

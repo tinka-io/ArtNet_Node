@@ -2,6 +2,7 @@
 // ArtNet protocol handler - network setup is handled by NetworkConfig.h
 
 #include <WiFiUdp.h>
+#include "web/WebLogger.h"
 
 const uint16_t ARTNET_PORT = 6454;
 
@@ -12,7 +13,7 @@ __attribute__((aligned(4))) static uint8_t packetBuffer[530];
 void setup_artnet(WiFiUDP& udp)
 {
   udp.begin(ARTNET_PORT);
-  Serial.printf("UDP for ArtNet started on port %d\n", ARTNET_PORT);
+  LOG_PRINTF("UDP for ArtNet started on port %d\n", ARTNET_PORT);
 }
 
 // Receive and parse ArtNet DMX packet

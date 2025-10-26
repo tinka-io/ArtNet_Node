@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include "../web/WebLogger.h"
 
 // Application Settings Structure
 struct ApplicationSettings {
@@ -35,10 +36,10 @@ public:
 
     prefs.end();
 
-    Serial.println("=== Application Settings Loaded ===");
-    Serial.printf("Mode: %s\n", app.useControlPanelMode ? "Control Panel" : "ArtNet Node");
-    Serial.printf("ArtNet Universe: %d\n", app.artnetUniverse);
-    Serial.printf("DMX Refresh Rate: %d ms\n", app.dmxRefreshRate);
+    LOG_PRINTLN("=== Application Settings Loaded ===");
+    LOG_PRINTF("Mode: %s\n", app.useControlPanelMode ? "Control Panel" : "ArtNet Node");
+    LOG_PRINTF("ArtNet Universe: %d\n", app.artnetUniverse);
+    LOG_PRINTF("DMX Refresh Rate: %d ms\n", app.dmxRefreshRate);
   }
 
   // Save all settings to persistent storage
@@ -52,7 +53,7 @@ public:
 
     prefs.end();
 
-    Serial.println("=== Application Settings Saved ===");
+    LOG_PRINTLN("=== Application Settings Saved ===");
   }
 
   // Reset to factory defaults
@@ -61,7 +62,7 @@ public:
     app.artnetUniverse = 8;
     app.dmxRefreshRate = 33;
     save();
-    Serial.println("=== Application Settings Reset to Defaults ===");
+    LOG_PRINTLN("=== Application Settings Reset to Defaults ===");
   }
 
   // Get mode as string for display

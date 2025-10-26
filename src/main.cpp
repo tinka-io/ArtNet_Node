@@ -57,7 +57,7 @@ void print_status()
   if (millis() - last_status > 30000)
   {
     last_status = millis();
-    Serial.println("\n[STATUS] Firmware: " + String(FIRMWARE_VERSION) + " | Uptime: " + String(millis() / 1000) + "s");
+    LOG_PRINTLN("[STATUS] Firmware: " + String(FIRMWARE_VERSION) + " | Uptime: " + String(millis() / 1000) + "s");
   }
 }
 
@@ -74,11 +74,15 @@ void setup()
   Serial.begin(115200);
 
   delay(100); // Give serial time to initialize
-  Serial.println("\n\n========================================");
-  Serial.println("Tinkas ArtNet Node");
-  Serial.println("Firmware Version: " + String(FIRMWARE_VERSION));
-  Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
-  Serial.println("========================================\n");
+
+  // Setup web logger to capture Serial output
+  setupWebLogger();
+
+  LOG_PRINTLN("\n========================================");
+  LOG_PRINTLN("Tinkas ArtNet Node");
+  LOG_PRINTLN("Firmware Version: " + String(FIRMWARE_VERSION));
+  LOG_PRINTF("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
+  LOG_PRINTLN("========================================");
 
   // Load application settings
   AppSettings::load();
@@ -91,14 +95,6 @@ void setup()
   OTA_setup(&server);
   startWebServer();
 
-  Serial.printf("\nNode IP: %s\n", getCurrentIP().toString().c_str());
-  Serial.printf("IP Mode: %s\n", useDHCP ? "DHCP" : "Static IP");
-  if (!useDHCP) {
-    Serial.printf("  Static IP: %s\n", staticIP.toString().c_str());
-    Serial.printf("  Gateway: %s\n", gateway.toString().c_str());
-    Serial.printf("  Subnet: %s\n\n", subnet.toString().c_str());
-  }
-
   cP.begin();
 
   setup_artnet(udp);
@@ -110,7 +106,7 @@ void setup()
     }
   };
 
-  Serial.println("Setup complete");
+  LOG_PRINTLN("Setup complete");
   digitalWrite(LED_PIN, LOW);
 }
 
@@ -156,7 +152,7 @@ void loop_artnet_node()
     if (now - lastArtNetTime > 5000)
     {
       lastArtNetTime = now;
-      Serial.printf("Warning: No Art-Net data for %lu ms\n", now - lastArtNetTime);
+      LOG_PRINTF("Warning: No Art-Net data for %lu ms\n", now - lastArtNetTime);
       if(led_dt != 1000) led_dt = 1000;
     }
   }

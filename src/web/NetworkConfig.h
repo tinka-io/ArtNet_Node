@@ -4,6 +4,7 @@
 #include <ETH.h>
 #include <WiFi.h>
 #include <Preferences.h>
+#include "WebLogger.h"
 
 // Firmware version - automatically generated from compile time
 #define FIRMWARE_VERSION __DATE__ " " __TIME__
@@ -82,11 +83,11 @@ IPAddress getCurrentSubnet() {
 void startWiFiFallback() {
   if (usingWiFi) return; // Already using WiFi
 
-  Serial.println("Starting WiFi fallback...");
+  LOG_PRINTLN("Starting WiFi fallback...");
   WiFi.mode(WIFI_STA);
 
   if (!useDHCP) {
-    Serial.println("Configuring Static IP for WiFi...");
+    LOG_PRINTLN("Configuring Static IP for WiFi...");
     WiFi.config(staticIP, gateway, subnet, dns1, dns2);
   }
 
@@ -97,7 +98,7 @@ void startWiFiFallback() {
 void stopWiFiFallback() {
   if (!usingWiFi) return; // Not using WiFi
 
-  Serial.println("Stopping WiFi fallback...");
+  LOG_PRINTLN("Stopping WiFi fallback...");
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   usingWiFi = false;
@@ -107,46 +108,42 @@ void stopWiFiFallback() {
 void WiFiEvent(WiFiEvent_t event) {
   switch (event) {
     case ARDUINO_EVENT_ETH_START:
-      Serial.println("ETH Started");
+      LOG_PRINTLN("ETH Started");
       ETH.setHostname("WT32-ETH01");
       break;
     case ARDUINO_EVENT_ETH_CONNECTED:
-      Serial.println("ETH Connected");
+      LOG_PRINTLN("ETH Connected");
       break;
     case ARDUINO_EVENT_ETH_GOT_IP:
-      Serial.print("ETH IP: ");
-      Serial.print(ETH.localIP());
-      Serial.print(", Gateway: ");
-      Serial.print(ETH.gatewayIP());
-      Serial.print(", Subnet: ");
-      Serial.println(ETH.subnetMask());
+      LOG_PRINTF("ETH IP: %s, Gateway: %s, Subnet: %s\n",
+                 ETH.localIP().toString().c_str(),
+                 ETH.gatewayIP().toString().c_str(),
+                 ETH.subnetMask().toString().c_str());
       // Ethernet is connected, stop WiFi if it's running
       stopWiFiFallback();
       break;
     case ARDUINO_EVENT_ETH_DISCONNECTED:
-      Serial.println("ETH Disconnected - Switching to WiFi");
+      LOG_PRINTLN("ETH Disconnected - Switching to WiFi");
       // Ethernet disconnected, start WiFi fallback
       startWiFiFallback();
       break;
     case ARDUINO_EVENT_ETH_STOP:
-      Serial.println("ETH Stopped");
+      LOG_PRINTLN("ETH Stopped");
       break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED:
-      Serial.println("WiFi Connected (Fallback)");
+      LOG_PRINTLN("WiFi Connected (Fallback)");
       break;
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-      Serial.print("WiFi IP: ");
-      Serial.print(WiFi.localIP());
-      Serial.print(", Gateway: ");
-      Serial.print(WiFi.gatewayIP());
-      Serial.print(", Subnet: ");
-      Serial.println(WiFi.subnetMask());
+      LOG_PRINTF("WiFi IP: %s, Gateway: %s, Subnet: %s\n",
+                 WiFi.localIP().toString().c_str(),
+                 WiFi.gatewayIP().toString().c_str(),
+                 WiFi.subnetMask().toString().c_str());
       break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-      Serial.println("WiFi Disconnected");
+      LOG_PRINTLN("WiFi Disconnected");
       // Try to reconnect WiFi if Ethernet is still down
       if (usingWiFi && !ETH.linkUp()) {
-        Serial.println("Attempting to reconnect WiFi...");
+        LOG_PRINTLN("Attempting to reconnect WiFi...");
         WiFi.reconnect();
       }
       break;
@@ -169,16 +166,16 @@ void initializeNetwork() {
   ETH.begin(1, 16, 23, 18, ETH_PHY_LAN8720, ETH_CLOCK_GPIO0_IN);
 
   if (!useDHCP) {
-    Serial.println("Configuring Static IP...");
+    LOG_PRINTLN("Configuring Static IP...");
     if (!ETH.config(staticIP, gateway, subnet, dns1, dns2)) {
-      Serial.println("Static IP configuration failed!");
+      LOG_PRINTLN("Static IP configuration failed!");
     }
   } else {
-    Serial.println("Using DHCP...");
+    LOG_PRINTLN("Using DHCP...");
   }
 
   // Wait for Ethernet connection
-  Serial.println("Waiting for Ethernet Connection");
+  LOG_PRINTLN("Waiting for Ethernet Connection");
   int timeout = 0;
   while (!ETH.linkUp() && timeout < 5) {
     delay(500);
@@ -187,27 +184,25 @@ void initializeNetwork() {
   }
 
   if (ETH.linkUp()) {
-    Serial.println("");
-    Serial.println("Ethernet connected!");
-    Serial.print("IP address: ");
-    Serial.println(ETH.localIP());
+    LOG_PRINTLN("\nEthernet connected!");
+    LOG_PRINTF("IP address: %s\n", ETH.localIP().toString().c_str());
     usingWiFi = false;
   } else {
-    Serial.println("\nEthernet failed! Falling back to WiFi...");
+    LOG_PRINTLN("\nEthernet failed! Falling back to WiFi...");
 
     // Fallback to WiFi
     WiFi.mode(WIFI_STA);
 
     if (!useDHCP) {
-      Serial.println("Configuring Static IP for WiFi...");
+      LOG_PRINTLN("Configuring Static IP for WiFi...");
       if (!WiFi.config(staticIP, gateway, subnet, dns1, dns2)) {
-        Serial.println("WiFi Static IP configuration failed!");
+        LOG_PRINTLN("WiFi Static IP configuration failed!");
       }
     }
 
     WiFi.begin(wifi_ssid, wifi_password);
 
-    Serial.println("Connecting to WiFi...");
+    LOG_PRINTLN("Connecting to WiFi...");
     timeout = 0;
     while (WiFi.status() != WL_CONNECTED && timeout < 40) {
       delay(500);
@@ -216,15 +211,12 @@ void initializeNetwork() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("");
-      Serial.println("WiFi connected!");
-      Serial.print("SSID: ");
-      Serial.println(wifi_ssid);
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
+      LOG_PRINTLN("\nWiFi connected!");
+      LOG_PRINTF("SSID: %s\n", wifi_ssid);
+      LOG_PRINTF("IP address: %s\n", WiFi.localIP().toString().c_str());
       usingWiFi = true;
     } else {
-      Serial.println("\nFailed to connect to WiFi! No network available.");
+      LOG_PRINTLN("\nFailed to connect to WiFi! No network available.");
     }
   }
 }
